@@ -62,9 +62,10 @@ def load_model_and_tokenizer(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    requested_dtype = getattr(torch, torch_dtype)
     load_kwargs: dict = {
         "trust_remote_code": True,
-        "torch_dtype": getattr(torch, torch_dtype),
+        "dtype": requested_dtype,
     }
 
     if load_in_8bit:
@@ -76,7 +77,15 @@ def load_model_and_tokenizer(
     # 8bit/4bit 以外は device_map を使わず .to(device) で移動。
     # device_map を指定すると accelerate が必要になるため。
 
-    model = AutoModelForCausalLM.from_pretrained(model_name_or_path, **load_kwargs)
+    try:
+        model = AutoModelForCausalLM.from_pretrained(model_name_or_path, **load_kwargs)
+    except TypeError as exc:
+        if "dtype" not in str(exc):
+            raise
+        fallback_kwargs = dict(load_kwargs)
+        fallback_kwargs.pop("dtype", None)
+        fallback_kwargs["torch_dtype"] = requested_dtype
+        model = AutoModelForCausalLM.from_pretrained(model_name_or_path, **fallback_kwargs)
     if not load_in_8bit and not load_in_4bit:
         model = model.to(device)
     model.eval()

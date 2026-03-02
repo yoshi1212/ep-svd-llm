@@ -35,7 +35,7 @@ class _DummyModel:
 
 
 class TestLoadModelAndTokenizer:
-    def test_uses_torch_dtype_keyword(self, monkeypatch):
+    def test_prefers_dtype_keyword(self, monkeypatch):
         captured = {}
 
         def fake_tokenizer_from_pretrained(*args, **kwargs):
@@ -54,6 +54,33 @@ class TestLoadModelAndTokenizer:
             device="cpu",
         )
 
-        assert "torch_dtype" in captured
-        assert captured["torch_dtype"] is torch.float16
-        assert "dtype" not in captured
+        assert "dtype" in captured
+        assert captured["dtype"] is torch.float16
+        assert "torch_dtype" not in captured
+
+    def test_falls_back_to_torch_dtype_for_older_api(self, monkeypatch):
+        calls = []
+
+        def fake_tokenizer_from_pretrained(*args, **kwargs):
+            return _DummyTokenizer()
+
+        def fake_model_from_pretrained(*args, **kwargs):
+            calls.append(kwargs.copy())
+            if "dtype" in kwargs:
+                raise TypeError("from_pretrained() got an unexpected keyword argument 'dtype'")
+            return _DummyModel()
+
+        monkeypatch.setattr(loader.AutoTokenizer, "from_pretrained", fake_tokenizer_from_pretrained)
+        monkeypatch.setattr(loader.AutoModelForCausalLM, "from_pretrained", fake_model_from_pretrained)
+
+        loader.load_model_and_tokenizer(
+            "dummy/model",
+            torch_dtype="float16",
+            device="cpu",
+        )
+
+        assert len(calls) == 2
+        assert "dtype" in calls[0]
+        assert "torch_dtype" not in calls[0]
+        assert "torch_dtype" in calls[1]
+        assert calls[1]["torch_dtype"] is torch.float16
