@@ -140,12 +140,12 @@ def compress_model(args):
     print(f"  Peak GPU memory (compression): {peak_vram_compress_gb:.2f} GB")
 
     # ------------------------------------------------------------------
-    # Merge LowRankLinear → nn.Linear and save
+    # Merge LowRankLinear → nn.Linear only when saving a HF-compatible model.
+    # For eval-only runs, the low-rank modules can be used directly.
     # ------------------------------------------------------------------
-    print("\nMerging low-rank factors for HuggingFace-compatible saving …")
-    merge_low_rank_layers(model)
-
     if not args.no_save:
+        print("\nMerging low-rank factors for HuggingFace-compatible saving …")
+        merge_low_rank_layers(model)
         output_dir = Path(args.output)
         output_dir.mkdir(parents=True, exist_ok=True)
         model.save_pretrained(str(output_dir))
