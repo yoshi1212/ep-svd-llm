@@ -23,16 +23,6 @@ dev = ["pytest", "black", "isort", "mypy"]
 where = ["."]
 include = ["ep_svd_llm*"]
 
-[[tool.uv.index]]
-name = "pytorch-cu121"
-url = "https://download.pytorch.org/whl/cu121"
-explicit = true
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch-cu121", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-]
-
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",

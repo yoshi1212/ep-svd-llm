@@ -33,6 +33,37 @@ pip install -e .
 
 **Requirements**: Python ≥ 3.10, PyTorch ≥ 2.0, Transformers ≥ 4.35
 
+### GPU / CUDA setup
+
+This package depends on `torch`, but it does not force a specific CUDA build.
+If you want GPU acceleration, install a CUDA-enabled PyTorch build for your
+environment before installing or syncing this project.
+
+Examples:
+
+```bash
+# pip: install a CUDA build first, then install this project
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+pip install -e .
+```
+
+```bash
+# uv: install a CUDA build first, then sync/install the project
+uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+uv sync
+```
+
+Use the PyTorch install selector to choose the correct command for your OS,
+Python version, and CUDA runtime:
+
+- [PyTorch Get Started](https://pytorch.org/get-started/locally/)
+
+You can verify that GPU support is available with:
+
+```bash
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
 For algorithm details and derivations, see the accompanying article / paper-style write-up outside this repository.
 
 ## Quick Start
