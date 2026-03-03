@@ -46,6 +46,9 @@ ls -t results/ppl_*.json | head -n 6
 
 This tutorial compares `svd_llm` and `ep_svd_llm` on TinyLlama at ratios `0.2, 0.4, 0.6, 0.8` and stores PPL results as JSON.
 
+The tutorial uses `--no-save`, so the compressed layers remain in `LowRankLinear`
+form during evaluation and no Hugging Face checkpoint is written.
+
 ### Compress a model
 
 ```bash
@@ -71,6 +74,12 @@ python scripts/compress_model.py \
     --alpha 0.5 \
     --output models/tinyllama_ep_svd_llm
 ```
+
+When saving is enabled, the script converts `LowRankLinear` layers back into
+standard `nn.Linear` weights before `save_pretrained()`. This produces a
+Hugging Face-compatible checkpoint for evaluation and distribution, but it does
+not preserve the low-rank parameterisation on disk. For eval-only runs, add
+`--no-save` to keep the low-rank modules in memory and skip that merge step.
 
 ### Evaluate (perplexity)
 
@@ -109,7 +118,10 @@ ep_svd_llm/
 ├── core/
 │   ├── base_compressor.py   # BaseCompressor (abstract), CompressionResult
 │   ├── svd_llm.py           # SVDLLMCompressor (X→SVD-LLM / X̂→SC-SVD-LLM)
+│   ├── pipeline.py          # SequentialCompressionPipeline
 │   └── ep_svd_llm.py        # EPSVDLLMCompressor
+├── data/
+│   └── calibration.py       # prepare_calibration_data
 ├── utils/
 │   ├── activation.py        # ActivationCollector, HessianAccumulator, DeltaHessianAccumulator
 │   └── metrics.py           # compute_perplexity, compute_layer_reconstruction_error
