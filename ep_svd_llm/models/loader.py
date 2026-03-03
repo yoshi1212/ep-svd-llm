@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from dataclasses import dataclass, field
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Union
 
 
 # ---------------------------------------------------------------------------
@@ -20,8 +20,8 @@ class ModelConfig:
     name: str
     """HuggingFace model name or local path."""
 
-    torch_dtype: str = "float16"
-    """Torch dtype string, e.g. 'float16', 'bfloat16', 'float32'."""
+    dtype: Union[torch.dtype, str] = torch.float16
+    """Torch dtype, e.g. ``torch.float16`` or ``"float16"``."""
 
     target_modules: List[str] = field(
         default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj",
@@ -36,7 +36,7 @@ class ModelConfig:
 
 def load_model_and_tokenizer(
     model_name_or_path: str,
-    torch_dtype: str = "float16",
+    dtype: Union[torch.dtype, str] = torch.float16,
     device: str = "cuda",
     load_in_8bit: bool = False,
     load_in_4bit: bool = False,
@@ -46,7 +46,7 @@ def load_model_and_tokenizer(
 
     Args:
         model_name_or_path: HuggingFace model name or local directory.
-        torch_dtype: Dtype string ('float16', 'bfloat16', 'float32').
+        dtype: Torch dtype to request when loading the model.
         device: Target device when not using device_map.
         load_in_8bit: Load in 8-bit quantisation (saves VRAM).
         load_in_4bit: Load in 4-bit quantisation (saves more VRAM).
@@ -62,7 +62,7 @@ def load_model_and_tokenizer(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    requested_dtype = getattr(torch, torch_dtype)
+    requested_dtype = getattr(torch, dtype) if isinstance(dtype, str) else dtype
     load_kwargs: dict = {
         "trust_remote_code": True,
         "dtype": requested_dtype,
@@ -74,9 +74,6 @@ def load_model_and_tokenizer(
     elif load_in_4bit:
         load_kwargs["load_in_4bit"] = True
         load_kwargs["device_map"] = "auto"
-    # 8bit/4bit 以外は device_map を使わず .to(device) で移動。
-    # device_map を指定すると accelerate が必要になるため。
-
     try:
         model = AutoModelForCausalLM.from_pretrained(model_name_or_path, **load_kwargs)
     except TypeError as exc:

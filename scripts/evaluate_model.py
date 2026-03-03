@@ -21,13 +21,15 @@ import json
 import torch
 from datetime import datetime
 from pathlib import Path
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Allow running from the repository root without installing the package.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ep_svd_llm.utils.metrics import compute_perplexity, print_gpu_memory
-from ep_svd_llm.models.loader import LowRankLinear  # noqa: registers custom module
+from ep_svd_llm.models.loader import (
+    LowRankLinear,  # noqa: F401 - keep import for custom module registration
+    load_model_and_tokenizer,
+)
 
 
 DATASET_CONFIGS = {
@@ -44,18 +46,11 @@ def evaluate(args):
     # ------------------------------------------------------------------ #
     # Load model and tokenizer
     # ------------------------------------------------------------------ #
-    print(f"Loading model from: {args.model_path}")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    model = AutoModelForCausalLM.from_pretrained(
+    model, tokenizer = load_model_and_tokenizer(
         args.model_path,
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
-        device_map=device,
+        dtype=torch.float16,
+        device=device,
     )
-    model.eval()
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f"Model loaded. Parameters: {n_params:,}")

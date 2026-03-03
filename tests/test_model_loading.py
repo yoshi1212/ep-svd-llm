@@ -50,7 +50,7 @@ class TestLoadModelAndTokenizer:
 
         loader.load_model_and_tokenizer(
             "dummy/model",
-            torch_dtype="float16",
+            dtype=torch.float16,
             device="cpu",
         )
 
@@ -75,7 +75,7 @@ class TestLoadModelAndTokenizer:
 
         loader.load_model_and_tokenizer(
             "dummy/model",
-            torch_dtype="float16",
+            dtype=torch.float16,
             device="cpu",
         )
 

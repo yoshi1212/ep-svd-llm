@@ -66,7 +66,7 @@ def compress_model(args):
     # Load model (and original copy for SVD-LLM / EP-SVD-LLM)
     # ------------------------------------------------------------------
     model, tokenizer = load_model_and_tokenizer(
-        args.model, torch_dtype="float16", device=device,
+        args.model, dtype=torch.float16, device=device,
     )
     model.eval()
     model.config.use_cache = False
@@ -75,7 +75,7 @@ def compress_model(args):
     if args.method in ("svd_llm", "ep_svd_llm"):
         print("Loading original reference model for original-model Hessians …")
         orig_model, _ = load_model_and_tokenizer(
-            args.model, torch_dtype="float16", device="cpu",  # Load to CPU to save VRAM
+            args.model, dtype=torch.float16, device="cpu",  # Load to CPU to save VRAM
         )
         orig_model.eval()
         orig_model.config.use_cache = False
