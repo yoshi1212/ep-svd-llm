@@ -103,14 +103,19 @@ python scripts/compress_model.py \
     --method ep_svd_llm \
     --compression-ratio 0.2 \
     --alpha 0.5 \
+    --save-format svd \
     --output models/tinyllama_ep_svd_llm
 ```
 
-When saving is enabled, the script converts `LowRankLinear` layers back into
+The default save format is `hf`, which converts `LowRankLinear` layers back into
 standard `nn.Linear` weights before `save_pretrained()`. This produces a
 Hugging Face-compatible checkpoint for evaluation and distribution, but it does
-not preserve the low-rank parameterisation on disk. For eval-only runs, add
-`--no-save` to keep the low-rank modules in memory and skip that merge step.
+not preserve the low-rank parameterisation on disk.
+
+For post-compression fine-tuning, use `--save-format svd` or `--save-format
+low_rank` so the compressed low-rank structure can be restored later. For
+eval-only runs, add `--no-save` to keep the low-rank modules in memory and skip
+disk output.
 
 ### Evaluate (perplexity)
 
@@ -119,6 +124,24 @@ python scripts/evaluate_model.py \
     --model-path models/tinyllama_ep_svd_llm \
     --dataset wikitext2
 ```
+
+### Post-compression fine-tuning
+
+```bash
+python scripts/post_compression_finetune.py \
+    --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+    --compressed-svd-model models/tinyllama_ep_svd_llm/svd_factors.pt \
+    --compression-method ep_svd_llm \
+    --compression-ratio 0.2 \
+    --strategies pissa \
+    --steps 40
+```
+
+This command runs continued causal-LM training after compression. It is not
+downstream task fine-tuning; the objective remains next-token prediction, and
+the goal is to adapt or recover the compressed language model.
+
+W&B logging is optional and is enabled only when `--use-wandb` is passed.
 
 ### Run tests
 
@@ -153,6 +176,9 @@ ep_svd_llm/
 │   └── ep_svd_llm.py        # EPSVDLLMCompressor
 ├── data/
 │   └── calibration.py       # prepare_calibration_data
+├── finetune/
+│   ├── helpers.py           # lightweight CLI / logging helpers
+│   └── post_compression.py  # post-compression causal-LM adaptation
 ├── utils/
 │   ├── activation.py        # ActivationCollector, HessianAccumulator, DeltaHessianAccumulator
 │   └── metrics.py           # compute_perplexity, compute_layer_reconstruction_error
