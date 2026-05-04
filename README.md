@@ -2,26 +2,39 @@
 
 **Error-Propagation SVD for Large Language Model Compression**
 
-EP-SVD-LLM is a layer-wise SVD compression method for LLMs that improves upon [SVD-LLM](https://arxiv.org/abs/2403.07378) by explicitly propagating and compensating accumulated compression errors across layers.
+EP-SVD-LLM is a layer-wise SVD compression method for LLMs that improves upon
+[SVD-LLM](https://arxiv.org/abs/2403.07378) by explicitly propagating and
+compensating accumulated compression errors across layers.
 
-> **Note on naming**: This package implements **SC-SVD-LLM** (Sequentially-Compressed SVD-LLM), which
-> processes layers sequentially using compressed activations X̂, and **EP-SVD-LLM**, which additionally
-> compensates accumulated errors. The original **SVD-LLM** paper uses FP activations X for all Hessians.
+> **Note on naming**: This package implements **SC-SVD-LLM**
+> (Sequentially-Compressed SVD-LLM), which processes layers sequentially using
+> compressed activations `X_hat`, and **EP-SVD-LLM**, which additionally
+> compensates accumulated errors. The original **SVD-LLM** paper uses FP
+> activations `X` for all Hessians.
 >
-> **Note on "Hessian"**: Throughout this codebase, XX⊤ is referred to as the "Hessian". This terminology
-> comes from the quantization literature (e.g. [GPTQ](https://arxiv.org/abs/2210.17323)), where the
-> Hessian of the layer-wise compression error ‖WX − W′X‖² w.r.t. W′ equals 2XX⊤. The SVD-LLM papers
-> themselves do not use this term.
+> **Note on "Hessian"**: Throughout this codebase, `XX^T` is referred to as the
+> "Hessian". This terminology comes from the quantization literature
+> (e.g. [GPTQ](https://arxiv.org/abs/2210.17323)), where the Hessian of the
+> layer-wise compression error `||WX - W'X||^2` with respect to `W'` equals
+> `2XX^T`. The SVD-LLM papers themselves do not use this term.
 
 ## Method
 
-Standard SC-SVD-LLM applies Truncation-Aware Data Whitening ([SVD-LLM](https://arxiv.org/abs/2403.07378); numerically stabilised via SVD-based decomposition from [V2](https://arxiv.org/abs/2503.12340)) to each layer sequentially, using compressed activations.  
-EP-SVD-LLM adds an _error propagation_ (EP) step based on [QEP](https://arxiv.org/abs/2504.09629):
+Standard SC-SVD-LLM applies Truncation-Aware Data Whitening
+([SVD-LLM](https://arxiv.org/abs/2403.07378); numerically stabilised via
+SVD-based decomposition from [V2](https://arxiv.org/abs/2503.12340)) to each
+layer sequentially, using compressed activations.
 
-1. Track the accumulated activation error **δ = X_fp − X̂** between the full-precision model and the (partially) compressed model.
-2. Compute a correction term: **correction = W δ X̂ᵀ Ĥ⁻¹**
-3. Apply it to the weight before SVD: **W\* = W + α · correction**
-4. Run SC-SVD-LLM whitening + truncated SVD on **W\***.
+EP-SVD-LLM adds an _error propagation_ (EP) step based on
+[QEP](https://arxiv.org/abs/2504.09629):
+
+1. Track the accumulated activation error `delta = X_fp - X_hat` between the
+   full-precision model and the partially compressed model.
+2. Compute a correction term:
+   `correction = W delta X_hat^T H_hat^{-1}`.
+3. Apply it to the weight before SVD:
+   `W* = W + alpha * correction`.
+4. Run SC-SVD-LLM whitening plus truncated SVD on `W*`.
 
 Setting `alpha=0` recovers plain SC-SVD-LLM.
 
@@ -31,7 +44,7 @@ Setting `alpha=0` recovers plain SC-SVD-LLM.
 pip install -e .
 ```
 
-**Requirements**: Python ≥ 3.10, PyTorch ≥ 2.0, Transformers ≥ 4.35
+**Requirements**: Python >= 3.10, PyTorch >= 2.0, Transformers >= 4.35
 
 ### GPU / CUDA setup
 
@@ -64,7 +77,8 @@ You can verify that GPU support is available with:
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-For algorithm details and derivations, see the accompanying article / paper-style write-up outside this repository.
+For algorithm details and derivations, see the accompanying article or
+paper-style write-up outside this repository.
 
 ## Quick Start
 
@@ -75,10 +89,29 @@ python runners/run_tinyllama_tutorial.py
 ls -t results/ppl_*.json | head -n 6
 ```
 
-This tutorial compares `svd_llm` and `ep_svd_llm` on TinyLlama at ratios `0.2, 0.4, 0.6, 0.8` and stores PPL results as JSON.
+This tutorial compares `svd_llm` and `ep_svd_llm` on TinyLlama at ratios
+`0.2, 0.4, 0.6, 0.8` and stores PPL results as JSON.
 
-The tutorial uses `--no-save`, so the compressed layers remain in `LowRankLinear`
-form during evaluation and no Hugging Face checkpoint is written.
+The tutorial uses `--no-save`, so the compressed layers remain in
+`LowRankLinear` form during evaluation and no Hugging Face checkpoint is
+written.
+
+### Saved compression + post-compression fine-tuning sample
+
+```bash
+python runners/run_tinyllama_saved_svd_finetune_sample.py
+```
+
+This sample is a lightweight end-to-end smoke run for the full workflow:
+
+1. Compress `TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T` with
+   `svd_llm`.
+2. Save the compressed state as `svd_factors.pt`.
+3. Fine-tune the saved state with `svd_llm_sequential` and `pissa` at rank `8`.
+
+The default sample counts and step counts are intentionally small so the script
+is practical as a reproducible public example. Use CLI overrides if you want a
+heavier run.
 
 ### Compress a model
 
@@ -103,14 +136,19 @@ python scripts/compress_model.py \
     --method ep_svd_llm \
     --compression-ratio 0.2 \
     --alpha 0.5 \
+    --save-format svd \
     --output models/tinyllama_ep_svd_llm
 ```
 
-When saving is enabled, the script converts `LowRankLinear` layers back into
-standard `nn.Linear` weights before `save_pretrained()`. This produces a
+The default save format is `hf`, which converts `LowRankLinear` layers back
+into standard `nn.Linear` weights before `save_pretrained()`. This produces a
 Hugging Face-compatible checkpoint for evaluation and distribution, but it does
-not preserve the low-rank parameterisation on disk. For eval-only runs, add
-`--no-save` to keep the low-rank modules in memory and skip that merge step.
+not preserve the low-rank parameterisation on disk.
+
+For post-compression fine-tuning, use `--save-format svd` or
+`--save-format low_rank` so the compressed low-rank structure can be restored
+later. For eval-only runs, add `--no-save` to keep the low-rank modules in
+memory and skip disk output.
 
 ### Evaluate (perplexity)
 
@@ -119,6 +157,24 @@ python scripts/evaluate_model.py \
     --model-path models/tinyllama_ep_svd_llm \
     --dataset wikitext2
 ```
+
+### Post-compression fine-tuning
+
+```bash
+python scripts/post_compression_finetune.py \
+    --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+    --compressed-svd-model models/tinyllama_ep_svd_llm/svd_factors.pt \
+    --compression-method ep_svd_llm \
+    --compression-ratio 0.2 \
+    --strategies pissa \
+    --steps 40
+```
+
+This command runs continued causal-LM training after compression. It is not
+downstream task fine-tuning; the objective remains next-token prediction, and
+the goal is to adapt or recover the compressed language model.
+
+W&B logging is optional and is enabled only when `--use-wandb` is passed.
 
 ### Run tests
 
@@ -144,25 +200,28 @@ low_rank = LowRankLinear(result.W_u, result.W_v, bias=original_layer.bias)
 
 ## Package Structure
 
-```
+```text
 ep_svd_llm/
-├── core/
-│   ├── base_compressor.py   # BaseCompressor (abstract), CompressionResult
-│   ├── svd_llm.py           # SVDLLMCompressor (X→SVD-LLM / X̂→SC-SVD-LLM)
-│   ├── pipeline.py          # SequentialCompressionPipeline
-│   └── ep_svd_llm.py        # EPSVDLLMCompressor
-├── data/
-│   └── calibration.py       # prepare_calibration_data
-├── utils/
-│   ├── activation.py        # ActivationCollector, HessianAccumulator, DeltaHessianAccumulator
-│   └── metrics.py           # compute_perplexity, compute_layer_reconstruction_error
-└── models/
-    └── loader.py            # LowRankLinear, load_model_and_tokenizer, ...
+|- core/
+|  |- base_compressor.py   # BaseCompressor (abstract), CompressionResult
+|  |- svd_llm.py           # SVDLLMCompressor (SVD-LLM / SC-SVD-LLM)
+|  |- pipeline.py          # SequentialCompressionPipeline
+|  `- ep_svd_llm.py        # EPSVDLLMCompressor
+|- data/
+|  `- calibration.py       # prepare_calibration_data
+|- finetune/
+|  |- helpers.py           # lightweight CLI / logging helpers
+|  `- post_compression.py  # post-compression causal-LM adaptation
+|- utils/
+|  |- activation.py        # ActivationCollector, HessianAccumulator, DeltaHessianAccumulator
+|  `- metrics.py           # compute_perplexity, compute_layer_reconstruction_error
+`- models/
+   `- loader.py            # LowRankLinear, load_model_and_tokenizer, ...
 ```
 
 ## Reference
 
-- [SVD-LLM (Wang et al., 2024)](https://arxiv.org/abs/2403.07378) — Truncation-aware SVD for LLM compression
-- [SVD-LLM V2 (Wang et al., 2024)](https://arxiv.org/abs/2503.12340) — Dynamic rank allocation & numerically stable whitening
-- [QEP (Arai & Ichikawa, 2025)](https://arxiv.org/abs/2504.09629) — Error propagation compensation (α-weighted correction)
-- [GPTQ (Frantar et al., 2022)](https://arxiv.org/abs/2210.17323) — Post-training quantization; origin of "Hessian" terminology for XX⊤
+- [SVD-LLM (Wang et al., 2024)](https://arxiv.org/abs/2403.07378) - Truncation-aware SVD for LLM compression
+- [SVD-LLM V2 (Wang et al., 2024)](https://arxiv.org/abs/2503.12340) - Dynamic rank allocation and numerically stable whitening
+- [QEP (Arai & Ichikawa, 2025)](https://arxiv.org/abs/2504.09629) - Error propagation compensation (alpha-weighted correction)
+- [GPTQ (Frantar et al., 2022)](https://arxiv.org/abs/2210.17323) - Post-training quantization; origin of "Hessian" terminology for `XX^T`

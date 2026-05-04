@@ -19,6 +19,7 @@ from ep_svd_llm.models.loader import (
     get_layer_by_name,
     set_layer_by_name,
     find_layers_in_block,
+    prepare_full_finetuning,
 )
 
 DTYPE = torch.float32
@@ -235,3 +236,27 @@ class TestFindLayersInBlock:
         layers = find_layers_in_block(block, target_modules=None)
         assert "proj" in layers
         assert "lm_head" not in layers
+
+
+# ---------------------------------------------------------------------------
+# 5. prepare_full_finetuning
+# ---------------------------------------------------------------------------
+
+class TestPrepareFullFinetuning:
+    def test_casts_model_to_float32_and_enables_all_params(self):
+        class TinyModule(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = nn.Linear(4, 3, bias=False, dtype=torch.float16)
+                self.register_buffer("running_scale", torch.ones(1, dtype=torch.float16))
+
+        model = TinyModule()
+        for param in model.parameters():
+            param.requires_grad = False
+
+        trainable_count = prepare_full_finetuning(model)
+
+        assert trainable_count == sum(param.numel() for param in model.parameters())
+        assert all(param.requires_grad for param in model.parameters())
+        assert all(param.dtype == torch.float32 for param in model.parameters())
+        assert model.running_scale.dtype == torch.float32
